@@ -1,69 +1,289 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Sky.guitars</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      overflow: hidden;
-      font-family: system-ui, sans-serif;
-      color: #fff;
-      background-color: #000;
-      background-image:
-        /* ember-sun at horizon */
-        radial-gradient(circle at 50% 110%, rgba(255, 85, 0, 0.8) 0%, transparent 40%),
-        /* deep hell-sky gradient */
-        linear-gradient(to top, #220000 0%, #440000 25%, #660000 50%, #220000 75%, #000000 100%);
-      background-blend-mode: screen;
-    }
+<meta charset="UTF-8">
+<title>Video Trace Recorder</title>
 
-    .title {
-      position: absolute;
-      top: 2%;
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: 2.25rem;
-      letter-spacing: 0.15em;
-      color: #ffaaaa;
-      text-shadow: 0 0 8px rgba(255, 50, 0, 0.7);
-    }
+<style>
+  body {
+    background:#111;
+    color:#fff;
+    font-family:system-ui;
+    padding:20px;
+  }
 
-    .strings {
-      position: absolute;
-      top: 10%;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      height: 80%;
-      justify-content: center;
-      pointer-events: none;
-    }
+  .stage {
+    position:relative;
+    width:640px;
+    max-width:100%;
+    margin-top:10px;
+  }
 
-    .string {
-      width: 2px;
-      height: 70vh;
-      background: rgba(255, 255, 255, 0.07);
-    }
-  </style>
+  video, canvas {
+    width:100%;
+    display:block;
+    border-radius:8px;
+  }
+
+  canvas {
+    position:absolute;
+    top:0;
+    left:0;
+    pointer-events:auto;
+  }
+
+  .controls {
+    margin-top:16px;
+    display:flex;
+    flex-direction:column;
+    gap:18px;
+  }
+
+  /* ================= THICC SLIDERS ================= */
+
+  input[type="range"] {
+    -webkit-appearance:none;
+    appearance:none;
+    width:100%;
+    height:32px;
+    background:#2a2a2a;
+    border-radius:999px;
+    outline:none;
+  }
+
+  input[type="range"]::-webkit-slider-runnable-track {
+    height:32px;
+    background:#2a2a2a;
+    border-radius:999px;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance:none;
+    appearance:none;
+    width:44px;
+    height:44px;
+    background:#ff0;
+    border-radius:50%;
+    margin-top:-6px;
+    cursor:pointer;
+  }
+
+  input[type="range"]::-moz-range-track {
+    height:32px;
+    background:#2a2a2a;
+    border-radius:999px;
+  }
+
+  input[type="range"]::-moz-range-thumb {
+    width:44px;
+    height:44px;
+    background:#ff0;
+    border-radius:50%;
+    border:none;
+    cursor:pointer;
+  }
+
+  input[type="range"].trace-active {
+    background:#3a3a00;
+  }
+
+  input[type="range"].trace-active::-webkit-slider-thumb,
+  input[type="range"].trace-active::-moz-range-thumb {
+    box-shadow:0 0 18px #ff0;
+  }
+
+  .row {
+    display:flex;
+    gap:16px;
+    align-items:center;
+  }
+
+  button {
+    padding:10px 16px;
+    font-size:14px;
+    cursor:pointer;
+  }
+</style>
 </head>
 <body>
 
-  <div class="title">Sky.guitars</div>
+<h3>Video Trace Recorder</h3>
 
-  <div class="strings">
-    <div class="string"></div>
-    <div class="string"></div>
-    <div class="string"></div>
-    <div class="string"></div>
-    <div class="string"></div>
-    <div class="string"></div>
+<input type="file" id="upload" accept="video/*">
+
+<div class="stage">
+  <video id="video" muted autoplay playsinline></video>
+  <canvas id="draw"></canvas>
+</div>
+
+<div class="controls">
+
+  <!-- Reference scrub -->
+  <input type="range" id="timebar1" min="0" max="0" step="0.01">
+
+  <!-- Hold to trace -->
+  <input type="range" id="timebar2" min="0" max="0" step="0.01">
+
+  <!-- Saturation -->
+  <div class="row">
+    Saturation
+    <input type="range" id="sat" min="0" max="100" value="100">
   </div>
+
+  <div class="row">
+    Speed
+    <input type="range" id="speed" min="0.05" max="2" step="0.05" value="1">
+    <button id="clear">Clear Trace</button>
+  </div>
+</div>
+
+<script>
+const video = document.getElementById('video');
+const canvas = document.getElementById('draw');
+const ctx = canvas.getContext('2d');
+
+const upload = document.getElementById('upload');
+const speed = document.getElementById('speed');
+const clearBtn = document.getElementById('clear');
+
+const timebar1 = document.getElementById('timebar1');
+const timebar2 = document.getElementById('timebar2');
+const satSlider = document.getElementById('sat');
+
+let traceMode = false;
+let drawing = false;
+let lastX = 0;
+let lastY = 0;
+
+// Each stroke = { t, x1, y1, x2, y2 }
+let strokes = [];
+
+/* ---------- helpers ---------- */
+
+function resizeCanvas() {
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+}
+
+function redraw() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  const sat = satSlider.value;
+  const hue = 55;      // yellow
+  const light = 55;
+
+  ctx.strokeStyle = `hsla(${hue}, ${sat}%, ${light}%, 0.25)`;
+  ctx.lineWidth = 18;
+  ctx.lineCap = "round";
+
+  const t = video.currentTime;
+
+  for (const s of strokes) {
+    if (s.t <= t) {
+      ctx.beginPath();
+      ctx.moveTo(s.x1, s.y1);
+      ctx.lineTo(s.x2, s.y2);
+      ctx.stroke();
+    }
+  }
+}
+
+/* ---------- upload ---------- */
+
+upload.onchange = e => {
+  video.src = URL.createObjectURL(e.target.files[0]);
+};
+
+/* ---------- init ---------- */
+
+video.onloadedmetadata = () => {
+  resizeCanvas();
+  timebar1.max = video.duration;
+  timebar2.max = video.duration;
+  redraw();
+};
+
+window.addEventListener("resize", resizeCanvas);
+
+/* ---------- speed ---------- */
+
+speed.oninput = () => {
+  video.playbackRate = speed.value;
+};
+
+/* ---------- sync ---------- */
+
+video.ontimeupdate = () => {
+  timebar1.value = video.currentTime;
+  timebar2.value = video.currentTime;
+  redraw();
+};
+
+/* ---------- scrub ---------- */
+
+timebar1.oninput = e => {
+  video.currentTime = e.target.value;
+  redraw();
+};
+
+/* ---------- trace (HOLD) ---------- */
+
+timebar2.oninput = () => {
+  traceMode = true;
+  timebar2.classList.add("trace-active");
+};
+
+timebar2.onchange = () => {
+  traceMode = false;
+  timebar2.classList.remove("trace-active");
+};
+
+/* ---------- drawing ---------- */
+
+canvas.onmousedown = e => {
+  if (!traceMode) return;
+  drawing = true;
+
+  const r = canvas.getBoundingClientRect();
+  lastX = (e.clientX - r.left) * canvas.width / r.width;
+  lastY = (e.clientY - r.top) * canvas.height / r.height;
+};
+
+canvas.onmouseup = () => drawing = false;
+canvas.onmouseleave = () => drawing = false;
+
+canvas.onmousemove = e => {
+  if (!drawing || !traceMode) return;
+
+  const r = canvas.getBoundingClientRect();
+  const x = (e.clientX - r.left) * canvas.width / r.width;
+  const y = (e.clientY - r.top) * canvas.height / r.height;
+
+  strokes.push({
+    t: video.currentTime,
+    x1: lastX,
+    y1: lastY,
+    x2: x,
+    y2: y
+  });
+
+  lastX = x;
+  lastY = y;
+
+  redraw();
+};
+
+/* ---------- saturation ---------- */
+
+satSlider.oninput = redraw;
+
+/* ---------- clear ---------- */
+
+clearBtn.onclick = () => {
+  strokes = [];
+  redraw();
+};
+</script>
 
 </body>
 </html>
