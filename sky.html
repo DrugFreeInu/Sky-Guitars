@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <title>Sky.guitars</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
   <style>
     html, body {
       margin: 0;
@@ -13,56 +12,43 @@
       overflow: hidden;
       font-family: system-ui, sans-serif;
       color: #fff;
-      background: linear-gradient(270deg, #3c0000, #8b0000, #ff0000);
-      background-size: 600% 600%;
-      animation: bloodPulse 40s ease infinite;
-    }
-
-    @keyframes bloodPulse {
-      0% { background-position: 0% 50%; }
-      50% { background-position: 100% 50%; }
-      100% { background-position: 0% 50%; }
+      background-color: #000;
+      background-image:
+        /* ember-sun at horizon */
+        radial-gradient(circle at 50% 110%, rgba(255, 85, 0, 0.8) 0%, transparent 40%),
+        /* deep hell-sky gradient */
+        linear-gradient(to top, #220000 0%, #440000 25%, #660000 50%, #220000 75%, #000000 100%);
+      background-blend-mode: screen;
     }
 
     .title {
       position: absolute;
-      top: 20px;
+      top: 2%;
       left: 50%;
       transform: translateX(-50%);
-      font-size: 2rem;
-      letter-spacing: 0.1em;
-      text-shadow: 0 0 8px rgba(255, 0, 0, 0.6);
+      font-size: 2.25rem;
+      letter-spacing: 0.15em;
+      color: #ffaaaa;
+      text-shadow: 0 0 8px rgba(255, 50, 0, 0.7);
     }
 
     .strings {
       position: absolute;
-      top: 0;
+      top: 10%;
       left: 50%;
       transform: translateX(-50%);
       display: flex;
       flex-direction: column;
-      gap: 8px;
-      height: 100%;
+      gap: 12px;
+      height: 80%;
       justify-content: center;
       pointer-events: none;
     }
 
     .string {
       width: 2px;
-      height: 80vh;
-      background: rgba(255, 255, 255, 0.2);
-      animation: float 4s ease-in-out infinite;
-    }
-
-    .string:nth-child(2) { animation-delay: 0.2s; }
-    .string:nth-child(3) { animation-delay: 0.4s; }
-    .string:nth-child(4) { animation-delay: 0.6s; }
-    .string:nth-child(5) { animation-delay: 0.8s; }
-    .string:nth-child(6) { animation-delay: 1.0s; }
-
-    @keyframes float {
-      0%, 100% { transform: translateX(0); }
-      50% { transform: translateX(10px); }
+      height: 70vh;
+      background: rgba(255, 255, 255, 0.07);
     }
   </style>
 </head>
